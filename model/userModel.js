@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+const roles = require('./role')
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -14,14 +15,15 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, "Please provide a password"],
   },
-  // userType: {
-  //   type: String,
-  //   enum : {
-  //       values : ['CEO', 'RH', 'Tech Lead'],
-  //       message : `{value} does not have permission to connect`
-  //     },
-  //     required: true ,
-  //   },
+  userType: {
+    type: String,
+    required: true ,
+    enum : {
+        values : [roles.CEO, roles.HR, roles.TECH_LEAD],
+        message : `{value} does not have permission to connect`
+      },
+    
+    },
   createdAt: {
     type: Date,
     default: Date.now(),

@@ -1,33 +1,29 @@
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
-const User = require("../model/userModel")
-const bcrypt = require('bcryptjs')
-
-
-const config = {
-  secret: 'c0318d7c6c023ead5e5c394312561e347fb4501856b9da9b563ed4786a0c8d8a7e0d026d9f6fd3dcabb99917dfc7b6c00fcfcdb664ab9d6702e9202f373dcdfa'
-};
-
-const getAllUsers = async (req, res) => {
-  const users = await User.find({})
-  res.status(200).json({ users })
-}
-
+const User = require("../model/userModel");
+const bcrypt = require("bcryptjs");
+const { StatusCodes } = require("http-status-codes");
+const roles = require("../model/role");
 
 const login = async (req, res) => {
   const user = new User({
     email: req.body.email,
-    password: req.body.password
-  })
+    password: req.body.password,
+    userType: req.body.userType,
+  });
 
   if (!user.email || !user.password) {
-    return res.status(400).json({ message: "Please provide an email and password !" });
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Please provide an email and password !" });
   }
 
   try {
     const foundUser = await User.findOne({ email: req.body.email });
     if (!foundUser) {
-      return res.status(401).json({ message: "user does not exist." });
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ message: "user does not exist." });
     }
 
     var passwordIsValid = bcrypt.compareSync(
@@ -36,50 +32,111 @@ const login = async (req, res) => {
     );
 
     if (!passwordIsValid) {
-      return res.status(401).send({
+      return res.status(StatusCodes.UNAUTHORIZED).send({
         accessToken: null,
-        message: "Invalid Password!"
+        message: "Invalid Password!",
       });
     }
-    const token = jwt.sign({ id: user.id },
-      config.secret,
-      {
-        algorithm: 'HS256',
-
-        expiresIn: 3600,
-      });
-    res.status(200).json({ message: "User logged in successfully.", accessToken: token });
+    const validUserType = () => {
+      const allowedUserTypes = [roles.CEO, roles.HR, roles.TECH_LEAD];
+      return allowedUserTypes.includes(foundUser.userType);
+    };
+    if (!validUserType()) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ message: "User does not have permission to connect." });
+    }
+    const token = jwt.sign({ id: user.id }, process.env.SECRET, {
+      algorithm: "HS256",
+      expiresIn: 3600,
+    });
+    res
+      .status(StatusCodes.ACCEPTED)
+      .json({ message: "User logged in successfully.", accessToken: token });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error during the authentication." });
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Error during the authentication." });
   }
-
 };
-
-
-// function generateAccessToken(user) {
-//   return jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '30d' });
-// }
 
 const register = async (req, res) => {
   const user = new User({
     email: req.body.email,
-    password: bcrypt.hashSync(req.body.password, 8)
-  })
+    password: bcrypt.hashSync(req.body.password, 8),
+    userType: req.body.userType,
+  });
   const foundUser = await User.findOne({ email: req.body.email });
   if (foundUser) {
-    return res.status(401).json({ message: "User already exists." });
+    return res
+      .status(StatusCodes.UNAUTHORIZED)
+      .json({ message: "User already exists." });
   }
   try {
     await user.save();
-    res.status(200).send({ message: 'User was registered successfully!' });
+    res
+      .status(StatusCodes.ACCEPTED)
+      .send({ message: "User was registered successfully!" });
   } catch (error) {
-    res.status(500).send({ message: error.message });
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send({ message: error.message });
   }
-}
+};
 
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find({});
+    const data = users.map((user) => {
+      return {
+        email: user.email,
+        job: user.userType,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      };
+    });
+    res.status(StatusCodes.ACCEPTED).json({ users: data });
+  } catch (error) {
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send({ message: error.message });
+  }
+};
 
+const getUserByEmail = async (req, res) => {
+  const userEmail = req.params.email;
+  const user = await User.findOne({ email: userEmail });
+  if (!user) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ message: "User not found" });
+  }
+  res.status(StatusCodes.OK).json({ user });
+};
 
-module.exports = { login, register, getAllUsers }
+const UpdateUser = async (req, res) => {
+  const newUserEmail = req.body.email;
+  const newUserType = req.body.userType;
 
+  if (!newUserEmail || !newUserType) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ message: "Please provide an email and a userType !" });
+  }
+  //findOneAnd Update prend 3 arg filter , update et option new:true
+  const update = { email: newUserEmail, userType: newUserType };
+  const updatedUser = await User.findOneAndUpdate(
+    { email: req.params.email },
+    update,
+    { new: true }
+  );
+  if (!updatedUser) {
+    return res
+      .status(StatusCodes.NOT_FOUND)
+      .json({ message: "User not found." });
+  }
+  res.status(StatusCodes.OK).json({ updatedUser });
+};
 
+module.exports = { login, register, getAllUsers, getUserByEmail, UpdateUser };
