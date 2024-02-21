@@ -5,6 +5,7 @@ const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 const roles = require("../model/role");
 
+
 const login = async (req, res) => {
   const user = new User({
     email: req.body.email,
@@ -61,6 +62,7 @@ const login = async (req, res) => {
   }
 };
 
+
 const register = async (req, res) => {
   const user = new User({
     email: req.body.email,
@@ -85,6 +87,7 @@ const register = async (req, res) => {
   }
 };
 
+
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({});
@@ -104,6 +107,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+
 const getUserByEmail = async (req, res) => {
   const userEmail = req.params.email;
   const user = await User.findOne({ email: userEmail });
@@ -115,28 +119,56 @@ const getUserByEmail = async (req, res) => {
   res.status(StatusCodes.OK).json({ user });
 };
 
-const UpdateUser = async (req, res) => {
-  const newUserEmail = req.body.email;
-  const newUserType = req.body.userType;
 
-  if (!newUserEmail || !newUserType) {
-    return res
-      .status(StatusCodes.BAD_REQUEST)
-      .json({ message: "Please provide an email and a userType !" });
+const UpdateUser = async (req, res) => {
+  try {
+    
+    const newUserEmail = req.body.email;
+    const newUserType = req.body.userType;
+  
+    if (!newUserEmail || !newUserType) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Please provide an email and a userType !" });
+    }
+  
+    const update = { email: newUserEmail, userType: newUserType };
+    const updatedUser = await User.findOneAndUpdate(
+      { email: req.params.email },
+      update,
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "User not found." });
+    }
+    res.status(StatusCodes.OK).json({ updatedUser });
+  } catch (error) {
+    res
+    .status(StatusCodes.INTERNAL_SERVER_ERROR)
+    .send({ message: error.message });
   }
-  //findOneAnd Update prend 3 arg filter , update et option new:true
-  const update = { email: newUserEmail, userType: newUserType };
-  const updatedUser = await User.findOneAndUpdate(
-    { email: req.params.email },
-    update,
-    { new: true }
-  );
-  if (!updatedUser) {
-    return res
-      .status(StatusCodes.NOT_FOUND)
-      .json({ message: "User not found." });
-  }
-  res.status(StatusCodes.OK).json({ updatedUser });
 };
 
-module.exports = { login, register, getAllUsers, getUserByEmail, UpdateUser };
+const deleteUser = async (req,res) => {
+try {
+    
+  const  userEmail = req.params.email; 
+  const user = await User.findOneAndDelete({ email: userEmail })
+  if(!user){
+    return res
+    .status(StatusCodes.NOT_FOUND)
+    .json({ message: "User not found." });
+  
+  }
+  res.status(StatusCodes.OK).json({message: "User was deleted successfully!"});
+ 
+  
+} catch (error) {
+  res
+  .status(StatusCodes.INTERNAL_SERVER_ERROR)
+  .send({ message: error.message });
+}
+}
+module.exports = { login, register, getAllUsers, getUserByEmail, UpdateUser,deleteUser };
