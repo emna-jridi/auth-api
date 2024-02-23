@@ -4,6 +4,7 @@ const User = require("../model/userModel");
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 const roles = require("../model/role");
+const{passwordIsValid,validUserType, generateToken }= require("../service/authService");
 
 
 const login = async (req, res) => {
@@ -27,30 +28,22 @@ const login = async (req, res) => {
         .json({ message: "user does not exist." });
     }
 
-    var passwordIsValid = bcrypt.compareSync(
-      req.body.password,
-      foundUser.password
-    );
+    
 
-    if (!passwordIsValid) {
+    if (!passwordIsValid(req.body.password, foundUser.password)) {
       return res.status(StatusCodes.UNAUTHORIZED).send({
         accessToken: null,
         message: "Invalid Password!",
       });
     }
-    const validUserType = () => {
-      const allowedUserTypes = [roles.CEO, roles.HR, roles.TECH_LEAD];
-      return allowedUserTypes.includes(foundUser.userType);
-    };
-    if (!validUserType()) {
+    const userTypeIsValid = validUserType(foundUser.userType);
+
+    if (!userTypeIsValid) {
       return res
         .status(StatusCodes.UNAUTHORIZED)
         .json({ message: "User does not have permission to connect." });
     }
-    const token = jwt.sign({ id: user.id }, process.env.SECRET, {
-      algorithm: "HS256",
-      expiresIn: 3600,
-    });
+    const token = generateToken(user.id);
     res
       .status(StatusCodes.ACCEPTED)
       .json({ message: "User logged in successfully.", accessToken: token });
@@ -122,17 +115,14 @@ const getUserByEmail = async (req, res) => {
 
 const UpdateUser = async (req, res) => {
   try {
-    
-    const newUserEmail = req.body.email;
-    const newUserType = req.body.userType;
   
-    if (!newUserEmail || !newUserType) {
+    if (! req.body.email || !req.body.userType) {
       return res
         .status(StatusCodes.BAD_REQUEST)
         .json({ message: "Please provide an email and a userType !" });
     }
   
-    const update = { email: newUserEmail, userType: newUserType };
+    const update = { email:  req.body.email, userType: req.body.userType,updatedAt: new Date() };
     const updatedUser = await User.findOneAndUpdate(
       { email: req.params.email },
       update,
